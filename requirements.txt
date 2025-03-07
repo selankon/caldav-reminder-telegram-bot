@@ -9,6 +9,7 @@ icalendar==5.0.10
 idna==3.4
 lxml==4.9.3
 python-dateutil==2.8.2
+python-dotenv==1.0.1
 python-telegram-bot==20.6
 pytz==2023.3.post1
 recurring-ical-events==2.1.0
