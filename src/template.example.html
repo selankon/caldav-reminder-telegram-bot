@@ -1,0 +1,4 @@
+⏰<b>{{ summary }}</b>
+{% if Location %}📍{{ Location }}{% endif %}
+{% if date %}🗓{{ date | format_date("%H:%M") }}{% endif %}
+{% if description %}{{ description }}{% endif %}
