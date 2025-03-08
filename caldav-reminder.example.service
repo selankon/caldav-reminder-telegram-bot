@@ -1,0 +1,15 @@
+[Unit]
+Description=CalDAV Reminder Telegram Bot Service
+After=network.target
+
+[Service]
+WorkingDirectory=/path/to/bot
+ExecStart=/path/to/venv/bin/python /path/to/bot/src/app.py
+Restart=always
+User=botuser
+Group=botgroup
+StandardOutput=append:/var/log/caldavreminderbot.log
+StandardError=append:/var/log/caldavreminderbot.log
+
+[Install]
+WantedBy=multi-user.target
