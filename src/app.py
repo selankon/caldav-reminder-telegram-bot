@@ -11,6 +11,7 @@ from pytz import timezone
 import caldav
 import telegram
 from telegram.constants import ParseMode
+from jinja2 import Environment, FileSystemLoader
 
 DEFAULT_LOG_LEVEL = 'INFO'
 log_level = os.environ.get('LOG_LEVEL', DEFAULT_LOG_LEVEL)
@@ -270,10 +271,39 @@ class Worker:
             if reminder.dt <= datetime.now(tz=self.config.TIMEZONE):
                 logging.info(f'Sending reminder for {reminder.vevent.summary.value}')
                 bot = telegram.Bot(self.config.TELEGRAM_BOT_TOKEN)
-                await bot.send_message(text=f'<b>{reminder.vevent.summary.value}</b>\r\n{reminder.vevent.dtstart.value.strftime("%d.%m.%Y %H:%M:%S")}',
+                await bot.send_message(text=self.get_bot_message(reminder),
                                        chat_id=self.config.TELEGRAM_CHAT_ID, parse_mode=ParseMode.HTML)
                 return True
         return False
+
+    def get_bot_message(self, reminder: Reminder):
+        # Check if the template file exists
+        template_path = 'template.html'
+
+        def format_date(value, format="%d.%m.%Y %H:%M:%S"):
+            """ Custom filter to format datetime"""
+            if value:
+                return value.strftime(format)
+            return ''
+
+        if os.path.exists(template_path):
+            def remove_empty_lines(input_string):
+                # Split the string into lines, filter out empty lines, and join the lines back into a string
+                return '\n'.join(line for line in input_string.splitlines() if line.strip())
+            # Load and render the template using Jinja2
+            env = Environment(loader=FileSystemLoader(searchpath='./'))
+            template = env.get_template('template.html')
+            env.filters['format_date'] = format_date
+
+            # Render the template with the provided variables
+            msg = template.render(
+                summary=reminder.vevent.summary.value,
+                description=reminder.vevent.description.value,
+                location=reminder.vevent.location.value,
+                date=reminder.vevent.dtstart.value
+            ).strip()
+            return remove_empty_lines(msg)
+        return f'<b>{reminder.vevent.summary.value}</b>\r\n{format_date(reminder.vevent.dtstart.value)}'
 
 
 if __name__ == '__main__':

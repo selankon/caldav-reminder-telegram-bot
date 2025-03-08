@@ -62,6 +62,19 @@ docker-compose up --build -d
 - `TELEGRAM_CHAT_ID`: ID of the Telegram chat where reminders will be sent.
 - `TIMEZONE`: The timezone used for date and time operations.
 
+## Message templates
+
+To use custom templates for reminder notifications, create a `template.html` file in `src/` directory. 
+
+In the template, you can use Jinja2 syntax with the following variables: 
+
+- `summary`: event title
+- `description`: event description
+- `location`: event location
+- `date`: event start date. Optionally, you can apply custom formatting to the date using the `format_date` filter. 
+  
+If the `template.html` file is not found, the system will fall back to a default template. See `src/template.example.html`.
+
 ## License
 
 This project is licensed under the [GNU General Public License v3.0](LICENSE) due to compliance reasons with the used libraries.
