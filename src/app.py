@@ -6,6 +6,7 @@ from typing import List, Optional
 from datetime import date, time, datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from dataclasses import dataclass, field
+from dotenv import load_dotenv
 from pytz import timezone
 import caldav
 import telegram
@@ -26,6 +27,8 @@ class Config:
 
     def __init__(self):
         """Initialize configuration settings from environment variables or default values."""
+        load_dotenv()
+
         self.CALDAV_URL = os.environ.get('CALDAV_URL', None)
         self.CALDAV_USERNAME = os.environ.get('CALDAV_USERNAME', None)
         self.CALDAV_PASSWORD = os.environ.get('CALDAV_PASSWORD', None)
