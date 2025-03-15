@@ -286,6 +286,11 @@ class Worker:
                 return value.strftime(format)
             return ''
 
+        def get_vevent_value(vevent, key):
+            """Safely retrieve the `.value` of a vevent attribute, or return an empty string if missing."""
+            return vevent.contents.get(key, [None])[0].value if key in vevent.contents else ""
+
+
         if os.path.exists(template_path):
             def remove_empty_lines(input_string):
                 # Split the string into lines, filter out empty lines, and join the lines back into a string
@@ -297,14 +302,13 @@ class Worker:
 
             # Render the template with the provided variables
             msg = template.render(
-                summary=reminder.vevent.summary.value,
-                description=reminder.vevent.description.value,
-                location=reminder.vevent.location.value,
-                date=reminder.vevent.dtstart.value
+                summary=get_vevent_value(reminder.vevent, "summary"),
+                description=get_vevent_value(reminder.vevent, "description"),
+                location=get_vevent_value(reminder.vevent, "location"),
+                date=get_vevent_value(reminder.vevent, "dtstart")
             ).strip()
             return remove_empty_lines(msg)
         return f'<b>{reminder.vevent.summary.value}</b>\r\n{format_date(reminder.vevent.dtstart.value)}'
-
 
 if __name__ == '__main__':
     """Main entry point for the script."""
