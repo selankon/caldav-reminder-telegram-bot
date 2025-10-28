@@ -190,14 +190,15 @@ class CaldavHandler:
         for event in events:
             if len(event.reminders) == 0 and self.config.DEFAULT_EVENT_REMINDER_MINUTES:
                 logging.debug(f'Adding default reminder for event: {event.vevent.summary.value}')
-                reminders.append(
-                    Reminder.from_vevent(vevent=event.vevent, minutes=int(self.config.DEFAULT_EVENT_REMINDER_MINUTES),
-                                         url=event.raw_event.canonical_url))
+                reminder = Reminder.from_vevent(vevent=event.vevent,
+                                                minutes=int(self.config.DEFAULT_EVENT_REMINDER_MINUTES),
+                                                url=event.raw_event.canonical_url)
+                if reminder.dt >= datetime.now(tz=self.config.TIMEZONE):
+                    reminders.append(reminder)
                 continue
             for reminder in event.reminders:
                 if reminder.dt >= datetime.now(tz=self.config.TIMEZONE):
                     reminders.append(reminder)
-
         reminders.sort()
         if logging.getLogger().level == logging.DEBUG:
             logged_events = ''
