@@ -61,6 +61,8 @@ docker-compose up --build -d
 - `TELEGRAM_BOT_TOKEN`: Token for the Telegram bot.
 - `TELEGRAM_CHAT_ID`: ID of the Telegram chat where reminders will be sent.
 - `TIMEZONE`: The timezone used for date and time operations.
+- `DEFAULT_EVENT_REMINDER_MINUTES`: Define default reminder time in minutes if the event does not specify one. Default 
+is `None`. This is used when an event does not have a default reminder set, and you want to see it anyway.
 
 ## Message templates
 

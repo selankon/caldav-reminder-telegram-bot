@@ -1,17 +1,18 @@
-import os
-import sys
 import asyncio
 import logging
-from typing import List, Optional
-from datetime import date, time, datetime, timedelta
-from dateutil.relativedelta import relativedelta
+import os
+import sys
 from dataclasses import dataclass, field
-from dotenv import load_dotenv
-from pytz import timezone
+from datetime import date, time, datetime, timedelta
+from typing import List, Optional
+
 import caldav
 import telegram
-from telegram.constants import ParseMode
+from dateutil.relativedelta import relativedelta
+from dotenv import load_dotenv
 from jinja2 import Environment, FileSystemLoader
+from pytz import timezone
+from telegram.constants import ParseMode
 
 DEFAULT_LOG_LEVEL = 'INFO'
 log_level = os.environ.get('LOG_LEVEL', DEFAULT_LOG_LEVEL)
@@ -39,6 +40,7 @@ class Config:
         self.TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', None)
         self.TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', None)
         self.TIMEZONE = timezone(os.environ.get('TIMEZONE', 'UTC'))
+        self.DEFAULT_EVENT_REMINDER_MINUTES = os.environ.get('DEFAULT_EVENT_REMINDER_MINUTES', None)
 
         self.CALENDAR_IDS = self.CALENDAR_IDS.split(";") if self.CALENDAR_IDS else None
 
@@ -47,8 +49,14 @@ class Config:
 class Reminder:
     """Class representing a reminder."""
     dt: datetime
-    valarm: caldav.vobject.base.Component = field(compare = False)
-    vevent: caldav.vobject = field(compare = False)
+    valarm: caldav.vobject.base.Component = field(compare=False)
+    vevent: caldav.vobject = field(compare=False)
+
+    @staticmethod
+    def from_vevent(vevent: caldav.vobject, minutes: int) -> 'Reminder':
+        dtstart: datetime = vevent.dtstart.value
+        alarm_dt = dtstart - timedelta(minutes=minutes)
+        return Reminder(dt=alarm_dt, valarm=None, vevent=vevent)
 
 
 @dataclass()
@@ -119,7 +127,7 @@ class CaldavHandler:
             calendar = self.dav_client.calendar(url=item.url)
             start = datetime.now(tz=self.config.TIMEZONE)
             end = datetime.now(tz=self.config.TIMEZONE) + \
-                relativedelta(days=int(self.config.FETCH_EVENT_WINDOW_IN_DAYS))
+                  relativedelta(days=int(self.config.FETCH_EVENT_WINDOW_IN_DAYS))
             logging.debug(f'Searching for events. Range: [{str(start)}, {str(end)}]')
 
             events = calendar.search(
@@ -131,7 +139,8 @@ class CaldavHandler:
 
             for event in events:
                 vevent = event.vobject_instance.vevent
-                logging.debug(f'Processing event: {vevent.summary.value} (id: {vevent.uid.value}, dtstart: {vevent.dtstart.value})')
+                logging.debug(
+                    f'Processing event: {vevent.summary.value} (id: {vevent.uid.value}, dtstart: {vevent.dtstart.value})')
 
                 dtstart = vevent.dtstart.value
 
@@ -175,6 +184,10 @@ class CaldavHandler:
         logging.debug(f'Extracting Reminders from events: {[event.vevent.uid.value for event in events]}')
         reminders: List[Reminder] = []
         for event in events:
+            if len(event.reminders) == 0 and self.config.DEFAULT_EVENT_REMINDER_MINUTES:
+                logging.debug(f'Adding default reminder for event: {event.vevent.summary.value}')
+                reminders.append(Reminder.from_vevent(event.vevent, int(self.config.DEFAULT_EVENT_REMINDER_MINUTES)))
+                continue
             for reminder in event.reminders:
                 if reminder.dt >= datetime.now(tz=self.config.TIMEZONE):
                     reminders.append(reminder)
@@ -222,7 +235,8 @@ class Worker:
             self.reminder_task.cancel()
 
         if len(self.sorted_reminders) > 0:
-            self.reminder_task = self.event_loop.create_task(self.run_at(self.sorted_reminders[0].dt, self.process_reminders))
+            self.reminder_task = self.event_loop.create_task(
+                self.run_at(self.sorted_reminders[0].dt, self.process_reminders))
 
     async def sync(self) -> None:
         """Synchronize calendars and reminders with the server."""
@@ -247,7 +261,7 @@ class Worker:
             logging.exception(e)
         finally:
             next_sync_dt = datetime.now(tz=self.config.TIMEZONE) + \
-                relativedelta(seconds=int(self.config.SYNC_INTERVAL_IN_SEC))
+                           relativedelta(seconds=int(self.config.SYNC_INTERVAL_IN_SEC))
 
             loop = asyncio.get_event_loop()
             loop.create_task(self.run_at(next_sync_dt, self.sync))
@@ -290,6 +304,7 @@ class Worker:
             def remove_empty_lines(input_string):
                 # Split the string into lines, filter out empty lines, and join the lines back into a string
                 return '\n'.join(line for line in input_string.splitlines() if line.strip())
+
             # Load and render the template using Jinja2
             env = Environment(loader=FileSystemLoader(searchpath='./'))
             template = env.get_template('template.html')
@@ -323,7 +338,8 @@ if __name__ == '__main__':
         sys.exit(1)
 
     caldav_handler = CaldavHandler(config)
-    result = caldav_handler.login(caldav_url=config.CALDAV_URL, username=config.CALDAV_USERNAME, password=config.CALDAV_PASSWORD)
+    result = caldav_handler.login(caldav_url=config.CALDAV_URL, username=config.CALDAV_USERNAME,
+                                  password=config.CALDAV_PASSWORD)
     if result is False:
         logging.error('Cannot start: Login failed')
         sys.exit(1)
