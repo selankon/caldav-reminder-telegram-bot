@@ -312,10 +312,15 @@ class Worker:
 
             # Render the template with the provided variables
             msg = template.render(
-                summary=reminder.vevent.summary.value,
-                description=reminder.vevent.description.value,
-                location=reminder.vevent.location.value,
-                date=reminder.vevent.dtstart.value
+                summary=reminder.vevent.contents.get("summary", [None])[
+                    0].value if "summary" in reminder.vevent.contents else "",
+                description=reminder.vevent.contents.get("description", [None])[
+                    0].value if "description" in reminder.vevent.contents else "",
+                location=reminder.vevent.contents.get("location", [None])[
+                    0].value if "location" in reminder.vevent.contents else "",
+                date=reminder.vevent.contents.get("dtstart", [None])[
+                    0].value if "dtstart" in reminder.vevent.contents else ""
+
             ).strip()
             return remove_empty_lines(msg)
         return f'<b>{reminder.vevent.summary.value}</b>\r\n{format_date(reminder.vevent.dtstart.value)}'
