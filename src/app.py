@@ -4,7 +4,7 @@ import os
 import sys
 from dataclasses import dataclass, field
 from datetime import date, time, datetime, timedelta
-from typing import List, Optional
+from typing import List, Optional, Any
 
 import caldav
 import telegram
@@ -52,11 +52,13 @@ class Reminder:
     valarm: caldav.vobject.base.Component = field(compare=False)
     vevent: caldav.vobject = field(compare=False)
 
+    url: str = field(default='')
+
     @staticmethod
-    def from_vevent(vevent: caldav.vobject, minutes: int) -> 'Reminder':
+    def from_vevent(vevent: caldav.vobject, minutes: int, url: str) -> 'Reminder':
         dtstart: datetime = vevent.dtstart.value
         alarm_dt = dtstart - timedelta(minutes=minutes)
-        return Reminder(dt=alarm_dt, valarm=None, vevent=vevent)
+        return Reminder(dt=alarm_dt, valarm=None, vevent=vevent, url=url)
 
 
 @dataclass()
@@ -64,6 +66,7 @@ class Event:
     """Class representing an event."""
     vevent: caldav.vobject
     reminders: List[Reminder] = field(default_factory=list, init=False)
+    raw_event: Any = field(default=None)
 
 
 class CaldavHandler:
@@ -137,8 +140,8 @@ class CaldavHandler:
                 end=end,
             )
 
-            for event in events:
-                vevent = event.vobject_instance.vevent
+            for dav_event in events:
+                vevent = dav_event.vobject_instance.vevent
                 logging.debug(
                     f'Processing event: {vevent.summary.value} (id: {vevent.uid.value}, dtstart: {vevent.dtstart.value})')
 
@@ -154,7 +157,7 @@ class CaldavHandler:
 
                 vevent.dtstart.value = dtstart.astimezone(self.config.TIMEZONE)
                 dtstart = vevent.dtstart.value
-                event = Event(vevent=vevent)
+                event = Event(vevent=vevent, raw_event=dav_event)
 
                 for valarm in vevent.components():
                     trigger = valarm.trigger.value
@@ -163,7 +166,8 @@ class CaldavHandler:
                         alarm_dt = dtstart + trigger
                     else:
                         alarm_dt = trigger
-                    event.reminders.append(Reminder(dt=alarm_dt, valarm=valarm, vevent=vevent))
+                    event.reminders.append(
+                        Reminder(dt=alarm_dt, valarm=valarm, vevent=vevent, url=dav_event.canonical_url))
 
                 eventsData.append(event)
 
@@ -186,7 +190,9 @@ class CaldavHandler:
         for event in events:
             if len(event.reminders) == 0 and self.config.DEFAULT_EVENT_REMINDER_MINUTES:
                 logging.debug(f'Adding default reminder for event: {event.vevent.summary.value}')
-                reminders.append(Reminder.from_vevent(event.vevent, int(self.config.DEFAULT_EVENT_REMINDER_MINUTES)))
+                reminders.append(
+                    Reminder.from_vevent(vevent=event.vevent, minutes=int(self.config.DEFAULT_EVENT_REMINDER_MINUTES),
+                                         url=event.raw_event.canonical_url))
                 continue
             for reminder in event.reminders:
                 if reminder.dt >= datetime.now(tz=self.config.TIMEZONE):
@@ -319,8 +325,8 @@ class Worker:
                 location=reminder.vevent.contents.get("location", [None])[
                     0].value if "location" in reminder.vevent.contents else "",
                 date=reminder.vevent.contents.get("dtstart", [None])[
-                    0].value if "dtstart" in reminder.vevent.contents else ""
-
+                    0].value if "dtstart" in reminder.vevent.contents else "",
+                url=reminder.url,
             ).strip()
             return remove_empty_lines(msg)
         return f'<b>{reminder.vevent.summary.value}</b>\r\n{format_date(reminder.vevent.dtstart.value)}'
